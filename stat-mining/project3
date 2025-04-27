@@ -1,0 +1,201 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+
+# Load dataset from CSV
+df = pd.read_csv(r"C:\Users\joann\Documents\WGU\D600\D600 Task 3 Dataset 1 Housing Information.csv")
+
+print(df.dtypes)
+
+# D3 Describe the dependent variable and all independent variables
+df[['Price', 'SquareFootage', 'BackyardSpace', 'AgeOfHome', 'CrimeRate', 'DistanceToCityCenter']].describe()
+
+# D2  Standardize the continuous dataset variables
+from sklearn.preprocessing import StandardScaler
+
+# Define explanatory variables and the response variable
+explanatory_vars = ['SquareFootage', 'BackyardSpace', 'AgeOfHome', 'CrimeRate', 'DistanceToCityCenter']
+response_var = 'Price'
+
+# Extract explanatory variables and response variable
+X = df[explanatory_vars]
+y = df[response_var]
+
+# Standardize the explanatory variables
+scaler = StandardScaler()
+X_standardized = scaler.fit_transform(X)
+
+# Convert standardized data back to a DataFrame
+X_standardized_df = pd.DataFrame(X_standardized, columns=explanatory_vars)
+
+# Recombine the standardized explanatory variables with the response variable
+cleaned_df = pd.concat([X_standardized_df, y], axis=1)
+
+# Display the cleaned dataset
+cleaned_df.head()
+
+# Save the cleaned dataset to a new CSV file
+cleaned_df.to_csv('cleaned_dataset.csv', index=False)
+
+# E1 Determine the matrix of all the principal components.
+from sklearn.decomposition import PCA
+
+# Perform PCA on the standardized explanatory variables (X_standardized)
+pca = PCA()
+principal_components = pca.fit_transform(X_standardized_df)
+
+# PCA Matrix for principal components
+pca_matrix = pd.DataFrame(principal_components, columns=[f'PC{i+1}' for i in range(X_standardized_df.shape[1])])
+
+# Display the matrix of all principal components
+print(pca_matrix)
+
+# Save the principal components to a new file
+pca_matrix.to_csv('principal_components.csv', index=False)
+
+# e2 Identify the total number of principal components
+# Get the explained variance ratio for each principal component
+explained_variance_ratio = pca.explained_variance_ratio_
+
+# Plot the explained variance for each principal component (scree plot)
+plt.figure(figsize=(8, 6))
+plt.plot(range(1, len(explained_variance_ratio) + 1), explained_variance_ratio, marker='o', linestyle='--')
+plt.title('Scree Plot: Explained Variance by Principal Components')
+plt.xlabel('Principal Component')
+plt.ylabel('Explained Variance Ratio')
+plt.grid(True)
+plt.show()
+
+# Kaiser Rule: Count the number of components with eigenvalues greater than 1
+eigenvalues = pca.explained_variance_
+kaiser_count = np.sum(eigenvalues > 1)
+
+# Print the number of components to retain using the Kaiser Rule
+print(f"Number of components to retain (Kaiser Rule): {kaiser_count}")
+
+# If you'd like to see the cumulative explained variance to help determine the elbow visually
+cumulative_variance = np.cumsum(explained_variance_ratio)
+plt.figure(figsize=(8, 6))
+plt.plot(range(1, len(cumulative_variance) + 1), cumulative_variance, marker='o', linestyle='--')
+plt.title('Cumulative Explained Variance')
+plt.xlabel('Number of Principal Components')
+plt.ylabel('Cumulative Explained Variance')
+plt.grid(True)
+plt.show()
+
+# e3 Identify the variance
+# Get the variance of each principal component (explained variance)
+variance_of_components = pca.explained_variance_
+
+# Display the variance of each principal component
+variance_of_components
+
+# F1 Split the data into two datasets
+from sklearn.model_selection import train_test_split
+
+# Combine the principal components with the response variable 'Price'
+df_pca = principal_components_df.copy()  # We use the PCA components we computed earlier
+df_pca['Price'] = df['Price']  # Add the response variable to the dataframe
+
+# Split the dataset into training (80%) and testing (20%) sets
+X_train, X_test, y_train, y_test = train_test_split(df_pca.drop('Price', axis=1), df_pca['Price'], test_size=0.2, random_state=42)
+
+# Combine X_train with y_train, and X_test with y_test to create full datasets for training and testing
+train_data = pd.concat([X_train, y_train], axis=1)
+test_data = pd.concat([X_test, y_test], axis=1)
+
+# Save both datasets to new files
+train_data.to_csv('train_data.csv', index=False)
+test_data.to_csv('test_data.csv', index=False)
+
+# Print a quick check of the datasets
+print("Training data preview:")
+print(train_data.head())
+
+print("\nTesting data preview:")
+print(test_data.head())
+
+# F2 Create and perform a regression model using forward stepwise selection
+import statsmodels.api as sm
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+
+# Load the training dataset
+train_data = pd.read_csv(r"C:\Users\joann\Documents\WGU\D600\task3\train_data.csv")
+
+# Split the data into explanatory variables (X) and the response variable (y)
+X_train = train_data.drop('Price', axis=1)
+y_train = train_data['Price']
+
+# Add a constant to the explanatory variables for the intercept in the regression
+X_train_with_const = sm.add_constant(X_train)
+
+# Initialize a linear regression model
+model = sm.OLS(y_train, X_train_with_const)
+
+# Forward stepwise selection function
+def forward_stepwise_selection(X, y):
+    initial_features = X.columns.tolist()
+    best_features = []
+    remaining_features = list(initial_features)
+    while remaining_features:
+        feature_pvalues = []
+        for feature in remaining_features:
+            # Create a model with one additional feature
+            model = sm.OLS(y, sm.add_constant(X[best_features + [feature]]))
+            results = model.fit()
+            feature_pvalues.append((feature, results.pvalues[feature]))
+        
+        # Get the feature with the smallest p-value
+        feature_pvalues.sort(key=lambda x: x[1])
+        best_feature, p_value = feature_pvalues[0]
+        
+        # If the p-value is significant (p < 0.05), add it to the best features
+        if p_value < 0.05:
+            best_features.append(best_feature)
+            remaining_features.remove(best_feature)
+        else:
+            break
+    
+    return best_features
+
+# Perform forward stepwise selection
+selected_features = forward_stepwise_selection(X_train, y_train)
+
+# Create the final model with selected features and add constant term only once
+final_model = sm.OLS(y_train, sm.add_constant(X_train[selected_features])).fit()
+
+# Print the summary of the final model
+print(final_model.summary())
+
+#F3 Give the mean squared error (MSE) of the optimized model
+from sklearn.metrics import mean_squared_error
+
+# Use the final model to predict the values on the training set
+y_train_pred = final_model.predict(sm.add_constant(X_train[selected_features]))
+
+# Calculate the Mean Squared Error (MSE)
+mse = mean_squared_error(y_train, y_train_pred)
+
+# Print the MSE
+print(f"Mean Squared Error (MSE) on the training set: {mse}")
+
+# F4 Run the prediction on the test dataset
+# Use the final model to predict the values on the test set
+y_test_pred = final_model.predict(sm.add_constant(X_test[selected_features]))
+
+# Calculate the Mean Squared Error (MSE) for the test set
+mse_test = mean_squared_error(y_test, y_test_pred)
+
+# Optionally, calculate the Root Mean Squared Error (RMSE) for better interpretability
+rmse_test = np.sqrt(mse_test)
+
+# Print the MSE and RMSE for the test set
+print(f"Mean Squared Error (MSE) on the test set: {mse_test}")
+print(f"Root Mean Squared Error (RMSE) on the test set: {rmse_test}")
+
+# Verification of assumption
+correlation_matrix = df[explanatory_vars].corr()
+print(correlation_matrix)
