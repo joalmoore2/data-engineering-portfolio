@@ -1,0 +1,21 @@
+A1. Installation Instructions
+Step 1: Accessing the Dashboard 
+•	To access the dashboard online visit the link below.
+o	https://public.tableau.com/app/profile/joanne.moore3326/viz/JMoore_D601_Task1/TelecomChurn 
+•	To download the dashboard, select the download icon from the upper right-hand corner on the online dashboard. 
+o	PowerPoint – For users with no access to Tableau Desktop (Static View) 
+	Select PowerPoint > Include view or workbook pages your interested in seeing > Click Download
+o	Tableau Workbook – For users with access to Tableau Desktop. 
+	Select Tableau Workbook > Current Version > Click Download
+o	Other downloadable files are available if needed. 
+Step 2: Interacting with the dashboard
+•	Filter the dashboard by state:
+o	Click on one of the circles on the map to filter by state. You will see the views for Age, Services, and Gender will adjust based on the selected state’s data.
+•	Filter the dashboard by age:
+o	In the Churn by Age area select/deselect an age group to filter by age. You will see the views for Services and Gender also change. 
+•	Filter the map based on the number of churned customers:
+o	Use the range filter the broaden or narrow the displayed results on the map.
+Step 3: KPIs
+•	Percentage of Churned Customers – Easily view the amount of percentage of customers churned based on the amount of time they have been with the company
+•	Monthly Revenue Lost – View the top 10 states that have lost the most amount of money monthly due to customer churning. 
+•	Customers Lost - View the top 10 states that have lost the most number of customers overall. 
