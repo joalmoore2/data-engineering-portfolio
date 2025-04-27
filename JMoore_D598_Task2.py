@@ -1,0 +1,36 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import pandas as pd
+
+# Import data from an Excel file into a DataFrame
+df = pd.read_excel(r"C:\Users\joann\Documents\WGU\D598\D598_Data_Set.xlsx")
+
+# Identify duplicate rows
+duplicates = df.duplicated()
+if duplicates.any():
+    # Remove duplicates
+    df = df.drop_duplicates()
+else:
+    print("No duplicate rows found")
+
+# Group by state and calculate descriptive statistics
+st_stats = df.groupby("Business State").agg(['mean', 'median', 'min', 'max'])
+
+# Store results in a new DataFrame
+st_stats_df = pd.DataFrame(st_stats)
+
+#Print Results to verify implementation
+print(st_stats_df)
+
+# Filter businesses with negative debt-to-equity ratios
+df_filt = df[df["Debt to Equity"] < 0]
+
+# Create a new DataFrame with the debt-to-income ratio
+df["Debt-to-Income Ratio"] = df["Total Long-term Debt"] / df["Total Revenue"]
+
+# Concatenate the new debt-to-income ratio DataFrame with the original DataFrame
+final_df = pd.concat([df, df[['Debt-to-Income Ratio']]], axis=1)
+
+#Print final results
+print(final_df)
