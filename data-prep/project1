@@ -1,0 +1,99 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load dataset (example: CSV file)
+df = pd.read_csv(r"C:\Users\joann\Documents\WGU\D599\Employee Turnover Dataset.csv")
+print(df.dtypes)
+
+# CHECK DATA SET FOR QUALITY ISSUES
+# Display a sample of observable values for each variable
+observable_value = df.apply(lambda col: col.sample(1).values[0])
+print(observable_value)
+
+# Count the number of duplicates found
+num_duplicates = df.duplicated().sum()
+print(f"Number of duplicate rows: {num_duplicates}")
+
+# Count missing values
+total_missing = df.isnull().sum().sum()
+print(f"Total missing values in dataset: {total_missing}")
+
+# Find unique values
+print(df["PaycheckMethod"].unique()) #Needs to be clean
+print(df["MaritalStatus"].unique())  #Does not need to be cleaned
+print(df["CompensationType"].unique()) #Does not need to be cleaned
+print(df["Turnover"].unique()) #Will standardize below
+print(df["TextMessageOptIn"].unique()) #Does not need to be cleaned
+print(df["JobRoleArea"].unique()) #Needs to be clean
+print(df["Gender"].unique()) #Does not need to be cleaned
+
+# Visual chart to show outliers exist
+sns.boxplot(x=df["AnnualSalary"])
+plt.show()
+
+# CLEAN DATA
+# Remove Duplicates
+df_cleaned = df.drop_duplicates()
+
+# Find and Delete Missing Values
+df_cleaned = df_cleaned.dropna()  # Remove rows with any missing values
+
+# Clean Inconsistencies and Formatting Errors
+# Clean columns to make it consistent
+df_cleaned["PaycheckMethod"] = df_cleaned["PaycheckMethod"].str.lower().str.replace("_", " ").str.strip()
+df_cleaned["PaycheckMethod"] = df_cleaned["PaycheckMethod"].replace({
+    "mail check": "Mail Check",
+    "mailed check": "Mail Check",
+    "mailedcheck": "Mail Check",
+    "direct deposit": "Direct Deposit",
+    "directdeposit": "Direct Deposit",
+    "direct_deposit": "Direct Deposit"
+})
+
+df_cleaned["JobRoleArea"] = df_cleaned["JobRoleArea"].str.lower().str.replace("_", " ").str.strip()
+df_cleaned["JobRoleArea"] = df_cleaned["JobRoleArea"].replace({
+    "Information_Technology": "Information Technology",
+    "InformationTechnology": "Information Technology",
+    "Human_Resources": "Human Resources",
+    "HumanResources": "Human Resources"
+})
+
+
+# Example: Cleaning 'Turnover' column to standardize it
+df_cleaned["Turnover"] = df_cleaned["Turnover"].str.lower().str.strip()
+df_cleaned["Turnover"] = df_cleaned["Turnover"].replace({
+    "yes": "Yes",
+    "no": "No"
+})
+
+# Example: Cleaning 'HourlyRate' column, converting it to numeric (removes non-numeric values)
+df_cleaned["HourlyRate "] = pd.to_numeric(df_cleaned["HourlyRate "], errors="coerce")  # Convert errors to NaN
+
+# Outliers Handling for Numerical Columns
+# Use IQR to detect outliers for numerical columns
+def detect_outliers_iqr(column):
+    Q1 = column.quantile(0.25)
+    Q3 = column.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    return column[(column < lower_bound) | (column > upper_bound)]
+
+# Outlier detection and removal for numerical columns
+numerical_columns = df_cleaned.select_dtypes(include=[np.number]).columns
+
+for col in numerical_columns:
+    outliers = detect_outliers_iqr(df_cleaned[col])
+    df_cleaned = df_cleaned[~df_cleaned[col].isin(outliers)]  # Remove outliers
+
+# Remove Negative Values from AnnualSalary and DrivingCommuterDistance
+df_cleaned = df_cleaned[(df_cleaned["AnnualSalary"] >= 0) & (df_cleaned["DrivingCommuterDistance"] >= 0)]
+
+# Save the Cleaned Data to a New CSV File
+df_cleaned.to_csv("cleaned_dataset.csv", index=False)
+
+# Print the number of rows before and after cleaning the data
+print(f"Number of rows before cleaning: {len(df)}")
+print(f"Number of rows after cleaning: {len(df_cleaned)}")
