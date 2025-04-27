@@ -1,0 +1,174 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+
+# Load dataset from CSV
+df = pd.read_csv(r"C:\Users\joann\Documents\WGU\D600\d600-statistical-data-mining\D600 Task 1 Dataset 1 Housing Information.csv")
+
+# C2 Variables
+# Identify quantitative and categorical variables
+quantitative_vars = ["Price", "CrimeRate", "DistanceToCityCenter", "PropertyTaxRate", "LocalAmenities", "EmploymentRate", "SchoolRating"]
+categorical_vars = ["IsLuxury"]  
+
+# Calculate univariate statistics for quantitative variables
+quant_stats = df[quantitative_vars].describe().T  # Transpose for readability
+quant_stats["range"] = quant_stats["max"] - quant_stats["min"]  # Add range
+
+# Calculate relative frequencies for categorical variables
+cat_stats = {}
+for var in categorical_vars:
+    cat_stats[var] = df[var].value_counts(normalize=True).sort_values(ascending=False)  # Relative frequencies
+
+# Display results
+print("Univariate Statistics for Quantitative Variables:\n", quant_stats)
+print("\nRelative Frequencies for Categorical Variables:\n")
+for var, stats in cat_stats.items():
+    print(f"{var}:\n{stats}\n")
+    
+# Create histograms for quantitative variables
+for var in quantitative_vars:
+    plt.figure(figsize=(6, 4))
+    sns.histplot(df[var], bins=20, kde=True)  # Histogram with density curve
+    plt.xlabel(var)
+    plt.ylabel("Frequency")
+    plt.title(f"Distribution of {var}")
+    plt.show()
+
+# Create bar charts for categorical variables
+for var in categorical_vars:
+    plt.figure(figsize=(6, 4))
+    sns.countplot(x=df[var], order=df[var].value_counts().index)
+    plt.xlabel(var)
+    plt.ylabel("Count")
+    plt.title(f"Distribution of {var}")
+    plt.show()
+
+# Define variables
+response_var = "SchoolRating"  # Dependent variable
+quantitative_vars = ["Price", "CrimeRate", "DistanceToCityCenter", "PropertyTaxRate", "LocalAmenities", "EmploymentRate"]
+categorical_vars = ["IsLuxury"] 
+
+# Scatterplots for Quantitative vs. Quantitative (Explanatory vs. Response)
+for var in quantitative_vars:
+    plt.figure(figsize=(6, 4))
+    sns.scatterplot(x=df[var], y=df[response_var])
+    plt.xlabel(var)
+    plt.ylabel(response_var)
+    plt.title(f"{response_var} vs. {var}")
+    plt.show()
+
+# Side-by-Side Boxplots for Categorical vs. Quantitative (Explanatory vs. Response)
+for var in categorical_vars:
+    plt.figure(figsize=(6, 4))
+    sns.boxplot(x=df[var], y=df[response_var])
+    plt.xlabel(var)
+    plt.ylabel(response_var)
+    plt.title(f"Boxplot of {response_var} by {var}")
+    plt.show()
+
+# Select only the relevant explanatory variables
+X = df[['Price', 'CrimeRate', 'DistanceToCityCenter', 'PropertyTaxRate', 
+        'LocalAmenities', 'EmploymentRate', 'IsLuxury']]
+
+# Select the dependent variable
+y = df['SchoolRating']
+
+# Split the data into training and testing sets (80% training, 20% testing)
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Save the training and test datasets (X_train, X_test, y_train, y_test)
+X_train.to_csv('X_train.csv', index=False)  # Explanatory variables for training
+X_test.to_csv('X_test.csv', index=False)    # Explanatory variables for testing
+y_train.to_csv('y_train.csv', index=False)  # Response variable for training
+y_test.to_csv('y_test.csv', index=False)    # Response variable for testing
+
+import statsmodels.api as sm
+
+# Add a constant term for the intercept
+X_train_sm = sm.add_constant(X_train)  # Adds an intercept (b0) to the model
+
+# Fit the regression model using Ordinary Least Squares (OLS)
+model = sm.OLS(y_train, X_train_sm).fit()
+
+# Display regression results
+print(model.summary())
+
+# X_train and y_train are explanatory and target variables
+X_train = sm.add_constant(X_train)  # Add constant term for intercept
+
+# Initialize an empty DataFrame for the model
+initial_features = pd.DataFrame()  # DataFrame to store selected features
+remaining_features = list(X_train.columns)  # All features to start with
+remaining_features.remove('const')  # Remove the constant term from the feature list
+best_p_value = 0.05  # Set a significance threshold for p-value
+
+# Stepwise selection
+while remaining_features:
+    p_values = []
+    
+    # Try each remaining feature and calculate p-value for the model
+    for feature in remaining_features:
+        # Add the feature to the current model
+        temp_features = pd.concat([initial_features, X_train[[feature]]], axis=1)
+        
+        # Fit the model and get p-values
+        model = sm.OLS(y_train, temp_features).fit()
+        p_values.append((feature, model.pvalues[feature]))
+    
+    # Sort by p-value and select the feature with the lowest p-value
+    p_values = sorted(p_values, key=lambda x: x[1])
+    best_feature, best_p_value_for_feature = p_values[0]
+    
+    # If the best p-value is less than the threshold, keep the feature
+    if best_p_value_for_feature < best_p_value:
+        initial_features = pd.concat([initial_features, X_train[[best_feature]]], axis=1)
+        remaining_features.remove(best_feature)
+    else:
+        break  # If no feature improves the model, stop
+    
+    print(f"Selected features: {initial_features.columns.tolist()}")
+    print(f"Best p-value: {best_p_value_for_feature}")
+
+# Final model summary
+final_model = sm.OLS(y_train, initial_features).fit()
+print(final_model.summary())
+
+from sklearn.metrics import mean_squared_error
+
+# Generate predictions on the training set
+y_train_pred = final_model.predict(initial_features)
+
+# Calculate Mean Squared Error (MSE) on the training set
+mse = mean_squared_error(y_train, y_train_pred)
+print(f'Mean Squared Error (MSE) on the training set: {mse}')
+
+# Ensure that the test set contains only the selected features (excluding IsLuxury)
+X_test_with_intercept = X_test[initial_features.columns]
+
+# Make predictions on the test set
+y_test_pred = final_model.predict(X_test_with_intercept)
+
+# Calculate Mean Squared Error (MSE) for the test dataset
+mse_test = mean_squared_error(y_test, y_test_pred)
+
+# Output the MSE value for the test set
+print(f'Mean Squared Error (MSE) on the test set: {mse_test}')
+
+# Additional test VIF
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+# Creating a DataFrame for VIF calculation
+X_optimized = X_train[['Price', 'DistanceToCityCenter', 'PropertyTaxRate', 'EmploymentRate', 'CrimeRate', 'LocalAmenities']]
+
+# Adding intercept since VIF requires it
+X_optimized = sm.add_constant(X_optimized)
+
+# Calculating VIF for each feature
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X_optimized.columns
+vif_data["VIF"] = [variance_inflation_factor(X_optimized.values, i) for i in range(X_optimized.shape[1])]
+
+print(vif_data)
