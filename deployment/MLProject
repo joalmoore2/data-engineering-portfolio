@@ -1,0 +1,19 @@
+# Project name
+name: MLProject
+
+# Link to env file
+conda_env: pipeline_env.yaml
+
+entry_points:
+  main:
+    parameters:
+      alpha:
+        type: int
+        default: 20
+      order:
+        type: int
+        default: 1
+      N:
+        type: int
+        default: 20 # Set default value to 20 for the argument N
+    command: "python main.py" # Combines 3 steps (import, clean, poly) files into main file
