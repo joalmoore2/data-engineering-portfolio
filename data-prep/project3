@@ -1,0 +1,157 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load dataset from csv file
+# The dataset is stored locally, and we use pandas to read the CSV file.
+df = pd.read_csv(r"C:\Users\joann\Documents\WGU\D599\task3\Megastore_Dataset_Task_3 3.csv")
+
+# Display the column names to inspect them before processing
+print(df.columns)
+
+# Display the data types of each column to understand the dataset structure
+print(df.dtypes)
+
+# Strip any leading or trailing spaces from column names to avoid errors
+df.columns = df.columns.str.strip()
+
+# Display cleaned column names
+print(df.columns)
+
+# ****Market Basket Justification****
+# Example of one transaction
+
+# Select a random OrderID from the dataset
+random_order_id = df['OrderID'].sample(1).values[0]
+
+# Filter the dataset to get all transactions associated with the selected OrderID
+transactions_for_order = df[df['OrderID'] == random_order_id]
+
+# Select one random transaction from that order
+random_transaction = transactions_for_order.sample(1)
+
+# Display the selected transaction
+print(random_transaction.T)
+
+# **** Data Preparation and Analysis ****
+
+# Display unique values for categorical variables before encoding
+print(df["OrderPriority"].unique())
+print(df["CustomerOrderSatisfaction"].unique())
+
+# Import OrdinalEncoder for encoding categorical variables
+from sklearn.preprocessing import OrdinalEncoder
+
+# Step 1: Ordinal Encoding for OrderPriority and CustomerOrderSatisfaction
+# Map String to Numerical - (0,1) and (0-4)
+ordinal_encoder = OrdinalEncoder(categories=[['Medium', 'High'],
+                                             ['Very Dissatisfied', 'Dissatisfied', 'Prefer not to answer', 'Satisfied', 'Very Satisfied']])
+
+# Apply ordinal encoding to the selected categorical columns
+df[['OrderPriority', 'CustomerOrderSatisfaction']] = ordinal_encoder.fit_transform(df[['OrderPriority', 'CustomerOrderSatisfaction']])
+
+# Display the first few rows to verify encoding
+print(df[['OrderPriority', 'CustomerOrderSatisfaction']].head())
+
+# Step 2:  Convert categorical variables into one-hot encoding for analysis - DiscountApplied and ExpeditedShipping
+# Split into two columns (_Yes, _No)
+df = pd.get_dummies(df, columns=['DiscountApplied', 'ExpeditedShipping'], drop_first=True)
+
+# Step 3: Transactionalizing the Data for Market Basket Analysis
+# Group by OrderID and ProductName, summing the quantities
+basket_data = df[['OrderID', 'ProductName', 'Quantity']].drop_duplicates()
+
+# Pivot the data to create a transactional format with each product as a column
+basket_data = basket_data.pivot_table(index='OrderID', columns='ProductName', values='Quantity', aggfunc='sum', fill_value=0)
+
+# Convert quantities to binary (1 if product was purchased, 0 otherwise)
+basket_data = basket_data.map(lambda x: 1 if x > 0 else 0)
+
+# Ensure the 'OrderID' is a column, not an index
+basket_data = basket_data.reset_index()
+
+# Display the first few rows of the transactionalized data to check
+print(basket_data.head())
+
+# Merge the additional columns (encoded columns) back into the transactional dataset
+# We merge the order details with the basket data. Here we assume `df` still contains relevant order info
+order_details = df[['OrderID', 'OrderPriority', 'CustomerOrderSatisfaction', 'DiscountApplied_Yes', 'ExpeditedShipping_Yes']].drop_duplicates()
+
+# Merge with transactionalized basket data
+final_data = basket_data.merge(order_details, on='OrderID', how='left')
+
+# Reorder columns to keep order details first
+order_columns = ['OrderID', 'OrderPriority', 'CustomerOrderSatisfaction', 'DiscountApplied_Yes', 'ExpeditedShipping_Yes']
+product_columns = [col for col in final_data.columns if col not in order_columns]
+final_data = final_data[order_columns + product_columns]
+
+# Display the transformed data
+print(final_data.head())
+
+# Sort the rows by OrderID after all transformations are done
+final_data = final_data.sort_values(by='OrderID')
+
+# Save the cleaned and transactionalized dataset
+final_data.to_csv('cleaned_dataset.csv', index=False)
+
+print("Cleaned and transactionalized dataset has been saved as 'cleaned_dataset.csv'.")
+
+# **** Apriori Algorithm ****
+
+# Step 1: Transactionalize the data
+# Identify different products in the same transaction
+
+# Convert dataset into a list of transactions for Market Basket Analysis
+transactions = df.groupby('OrderID')['ProductName'].apply(list).tolist()
+
+# Import TransactionEncoder to prepare the data for Apriori Algorithm
+from mlxtend.preprocessing import TransactionEncoder
+
+# Encode transactions into a format suitable for Apriori algorithm
+te = TransactionEncoder()
+basket_data = te.fit(transactions).transform(transactions)
+
+# Convert into a DataFrame
+basket_df = pd.DataFrame(basket_data, columns=te.columns_)
+
+# Display the transformed basket data
+print(basket_df.head())
+
+# Step 2: # Import apriori algorithm from mlxtend
+# Apply the Apriori Algorithm to generate frequent itemsets
+from mlxtend.frequent_patterns import apriori
+
+# Generate frequent itemsets with minimum support threshold
+frequent_itemsets = apriori(basket_df, min_support=0.01, use_colnames=True)
+
+# Step 3: # Import association_rules to generate rules from frequent itemsets
+from mlxtend.frequent_patterns import association_rules
+
+# Extract association rules based on confidence threshold
+rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.5)
+
+# Display the generated rules
+print(rules)
+
+# Step 4: Save the results if needed
+rules.to_csv('association_rules.csv', index=False)
+
+# Sort rules by lift value to find the most significant associations
+sorted_rules = rules.sort_values(by='lift', ascending=False)
+
+# Select the top three association rules for further analysis
+top_three_rules = sorted_rules.head(3)
+
+# Display the top 3 rules
+print(top_three_rules)
+
+# Keep only relevant columns for clarity
+top_three_rules = top_three_rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']]
+
+# Display the selected top 3 rules
+print(top_three_rules)
+
+# Save the top 3 rules
+top_three_rules.to_csv('top_three_rules.csv', index=False)
+
