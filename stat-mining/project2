@@ -1,0 +1,192 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+
+# Load dataset from CSV
+df = pd.read_csv(r"C:\Users\joann\Documents\WGU\D600\D600 Task 2 Dataset 1 Housing Information.csv")
+
+# Confirm Binary
+print(df["IsLuxury"].unique())
+
+# C2 Describe the dependent variable and all independent variables
+# Identify quantitative and categorical variables
+quantitative_vars = ["Price", "CrimeRate", "DistanceToCityCenter", "PropertyTaxRate", "LocalAmenities", "EmploymentRate", "SchoolRating"]
+categorical_vars = ["IsLuxury"]  
+
+# Calculate univariate statistics for quantitative variables
+quant_stats = df[quantitative_vars].describe().T  # Transpose for readability
+quant_stats["range"] = quant_stats["max"] - quant_stats["min"]  # Add range
+
+# Calculate relative frequencies for categorical variables
+cat_stats = {}
+for var in categorical_vars:
+    cat_stats[var] = df[var].value_counts(normalize=True).sort_values(ascending=False)  # Relative frequencies
+
+# Display results
+print("Univariate Statistics for Quantitative Variables:\n", quant_stats)
+print("\nRelative Frequencies for Categorical Variables:\n")
+for var, stats in cat_stats.items():
+    print(f"{var}:\n{stats}\n")
+
+#C3 Generate univariate and bivariate visualizations
+# Create histograms for quantitative variables
+for var in quantitative_vars:
+    plt.figure(figsize=(6, 4))
+    sns.histplot(df[var], bins=20, kde=True)  # Histogram with density curve
+    plt.xlabel(var)
+    plt.ylabel("Frequency")
+    plt.title(f"Distribution of {var}")
+    plt.show()
+
+# Create bar charts for categorical variables
+for var in categorical_vars:
+    plt.figure(figsize=(6, 4))
+    sns.countplot(x=df[var], order=df[var].value_counts().index)
+    plt.xlabel(var)
+    plt.ylabel("Count")
+    plt.title(f"Distribution of {var}")
+    plt.show()
+
+# Define variables
+response_var = "IsLuxury"  # Dependent variable
+quantitative_vars = ["Price", "CrimeRate", "DistanceToCityCenter", "PropertyTaxRate", "LocalAmenities", "EmploymentRate", "SchoolRating"]
+
+# Create side-by-side boxplots for each quantitative variable vs. IsLuxury
+for var in quantitative_vars:
+    plt.figure(figsize=(7, 5))
+    sns.boxplot(x="IsLuxury", y=var, data=df, hue="IsLuxury", legend=False)
+    plt.xlabel("Luxury Status (0 = Non-Luxury, 1 = Luxury)")
+    plt.ylabel(var)
+    plt.title(f"Boxplot of {var} by IsLuxury")
+    plt.show()
+# D1 Split the data into two datasets
+from sklearn.model_selection import train_test_split
+
+# Define explanatory (independent) variables and response (dependent) variable
+X = df[["Price", "CrimeRate", "DistanceToCityCenter", "PropertyTaxRate", 
+        "LocalAmenities", "EmploymentRate", "SchoolRating"]]  # Independent variables
+y = df["IsLuxury"]  # Dependent variable (response)
+
+# Split the data (80% training, 20% testing)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42, stratify=y)
+
+# Save training and test datasets to CSV files
+train_df = pd.concat([X_train, y_train], axis=1)
+test_df = pd.concat([X_test, y_test], axis=1)
+
+train_df.to_csv("training_data.csv", index=False)
+test_df.to_csv("test_data.csv", index=False)
+
+print("Training and test datasets successfully saved!")
+
+# D2  Use the training dataset to create and perform a regression model - Forward Stepwise Selection
+from sklearn.model_selection import train_test_split
+
+# Add constant to the model (intercept)
+X = sm.add_constant(X)
+
+# Forward stepwise selection process:
+def forward_selection(X_train, y_train):
+    initial_features = X_train.columns.tolist()  # Get initial features
+    best_features = []  # Start with an empty list
+    while len(initial_features) > 0:
+        p_values = []  # List to store p-values
+        for feature in initial_features:
+            X_train_temp = X_train[best_features + [feature]]  # Add one feature at a time
+            model = sm.Logit(y_train, X_train_temp).fit()  # Fit the logistic regression model
+            p_values.append(model.pvalues[feature])  # Get p-value of the feature
+        # Select the feature with the smallest p-value (most significant)
+        min_p_value_feature = initial_features[p_values.index(min(p_values))]
+        # Add it to the list of selected features if it's statistically significant (p < 0.05)
+        if min(p_values) < 0.05:
+            best_features.append(min_p_value_feature)
+            initial_features.remove(min_p_value_feature)  # Remove it from initial features
+        else:
+            break  # Stop if no more significant features are found
+    return best_features
+
+# Run the forward selection process
+selected_features = forward_selection(X_train, y_train)
+
+# Print selected features
+print(f"Selected features after forward selection: {selected_features}")
+
+# Fit the final logistic regression model with selected features
+X_train_final = X_train[selected_features]  # Use only selected features for the final model
+X_train_final = sm.add_constant(X_train_final)  # Add constant to the final model
+final_model = sm.Logit(y_train, X_train_final).fit()
+
+# Print the summary of the final model
+print(final_model.summary())
+
+# Perform Multicollinearity
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+# Calculate VIF for each explanatory variable
+vif_data = pd.DataFrame()
+vif_data["Variable"] = X.columns
+vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+
+# Print VIF values
+print(vif_data)
+
+# D3 Give the confusion matrix and accuracy of the optimized model used on the training set
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+# Get predictions for the training set
+y_train_pred = final_model.predict(X_train_final)  # Use the final model and X_train_final (with selected features)
+
+# Convert predicted probabilities to binary outcomes (0 or 1)
+y_train_pred_binary = (y_train_pred > 0.5).astype(int)  # Threshold at 0.5 for binary classification
+
+# Calculate confusion matrix
+cm = confusion_matrix(y_train, y_train_pred_binary)
+
+# Calculate accuracy
+accuracy = accuracy_score(y_train, y_train_pred_binary)
+
+# Print confusion matrix and accuracy
+print("Confusion Matrix:")
+print(cm)
+print("\nAccuracy:", accuracy)
+
+# D4 Run the prediction on the test dataset 
+# Prepare the test data by selecting the same features as in the training set (final selected features)
+X_test_final = X_test[selected_features]  # Use only the selected features for the test set
+X_test_final = sm.add_constant(X_test_final)  # Add constant (intercept) to the test set
+
+# Make predictions for the test set
+y_test_pred = final_model.predict(X_test_final)
+
+# Convert predicted probabilities to binary outcomes (0 or 1)
+y_test_pred_binary = (y_test_pred > 0.5).astype(int)  # Threshold at 0.5 for binary classification
+
+# Calculate confusion matrix
+cm_test = confusion_matrix(y_test, y_test_pred_binary)
+
+# Calculate accuracy
+accuracy_test = accuracy_score(y_test, y_test_pred_binary)
+
+# Print confusion matrix and accuracy
+print("Confusion Matrix for Test Set:")
+print(cm_test)
+print("\nAccuracy for Test Set:", accuracy_test)
+
+# Linearity of Logit
+# Adding a small constant to avoid log(0) issues
+df["Price_log"] = df["Price"] * np.log(df["Price"])
+
+# Running logistic regression with interaction term (Price * log(Price))
+X = sm.add_constant(df[["Price", "Price_log"]])  # Adding constant term
+y = df["IsLuxury"]
+
+logit_model = sm.Logit(y, X)
+result = logit_model.fit()
+
+print(result.summary())
+
+# Independence of Observations
+duplicate_rows = df.duplicated().sum()
+print(f"Number of duplicate rows: {duplicate_rows}")
